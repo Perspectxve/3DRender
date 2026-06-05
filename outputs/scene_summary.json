@@ -15,8 +15,8 @@
     "cloud"
   ],
   "crystal_alpha_range": [
-    0.18000000715255737,
-    0.4796043932437897
+    0.18236598372459412,
+    0.4792117476463318
   ],
   "ai_ml_components": [
     "procedural surface-attribute supervision",
@@ -31,6 +31,6 @@
     "teacher_views": 8,
     "material_training_steps": 260,
     "num_splats": 1250000,
-    "final_loss": 0.0007306904881261289
+    "final_loss": 0.0008430183515883982
   }
 }

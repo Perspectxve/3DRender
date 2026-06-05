@@ -1,5 +1,6 @@
 import argparse, json, math, random
 from pathlib import Path
+from threading import local
 import numpy as np
 from PIL import Image, ImageFilter
 import imageio.v2 as imageio
@@ -769,7 +770,7 @@ def render_splats_np(scene, eye, target, W=640,H=360, fov=55, bg=None, glow=True
         e=np.uint8(np.clip(emission,0,1)*255)
         small=np.asarray(Image.fromarray(e).filter(ImageFilter.GaussianBlur(radius=4)),dtype=np.float32)/255
         wide=np.asarray(Image.fromarray(e).filter(ImageFilter.GaussianBlur(radius=14)),dtype=np.float32)/255
-        img=np.clip(img+small*0.70+wide*0.38,0,1)
+        img=np.clip(img+small*0.75+wide*0.38,0,1)
     return img
 
 # ----------------------------- lightweight Gaussian training -----------------------------
@@ -795,8 +796,8 @@ def build_teacher_targets(scene):
     if len(crystal_points)>0:
         samples=crystal_points[::max(1,len(crystal_points)//256)]
         distance,_=cKDTree(samples).query(P,k=1,workers=-1)
-        local=np.exp(-distance[:,None]*0.95)
-        target=np.clip(target+local*np.array([0.025,0.115,0.22],np.float32),0,1)
+        local = np.exp(-distance[:,None]*0.85)
+        target = np.clip(target + local*np.array([0.035,0.145,0.28],np.float32),0,1)
     altar_light=np.exp(-np.linalg.norm(P-np.array([0.0,1.05,-0.62],np.float32),axis=1)[:,None]*0.82)
     target=np.clip(target+altar_light*np.array([0.018,0.105,0.20],np.float32),0,1)
 
@@ -804,7 +805,7 @@ def build_teacher_targets(scene):
     target_emissive=scene['emissive'].copy()
     crystal_height=np.clip((P[crystal,1]-0.1)/2.8,0,1)
     target_op[crystal]=np.clip(target_op[crystal]*(1.02+0.95*crystal_height),0.18,0.50)
-    target_emissive[crystal]=np.clip(0.58+0.20*crystal_height,0.52,0.84)
+    target_emissive[crystal]=np.clip(0.75+0.25*crystal_height,0.70,1.00)
     return target.astype(np.float32),target_op.astype(np.float32),target_emissive.astype(np.float32)
 
 def train_gaussian_representation(mesh,tex,outdir,mode='quick'):
@@ -884,7 +885,11 @@ def train_gaussian_representation(mesh,tex,outdir,mode='quick'):
     scene['rgb'][crystal]=np.clip(scene['rgb'][crystal]*0.55+crystal_tint*0.45,0,1)
     scene['opacity'][crystal]=np.clip(0.42*scene['opacity'][crystal]+0.58*target_op[crystal],0.18,0.50)
     scene['opacity'][cloud]=np.clip(0.30*scene['opacity'][cloud]+0.70*target_op[cloud],0.015,0.08)
-    scene['emissive'][crystal]=np.clip(0.35*scene['emissive'][crystal]+0.65*target_emissive[crystal],0.50,0.86)
+    scene['emissive'][crystal]=np.clip(
+        0.25*scene['emissive'][crystal]+0.75*target_emissive[crystal],
+        0.65,
+        1.00
+    )
     scene['emissive'][~crystal]*=0.18
     np.savez_compressed(Path(outdir)/'learned_gaussian_splats.npz',**scene)
     torch.save(net.state_dict(),Path(outdir)/'neural_material_mlp.pt')
@@ -938,6 +943,24 @@ def render_video_frames(scene,outdir,mode,start=0,end=None):
         raise ValueError(f'invalid frame range [{start}, {end}) for {frames} frames')
     frame_dir=Path(outdir)/'frames'; ensure(frame_dir)
     render_scene=video_render_scene(scene,mode)
+    render_scene = {
+        key: (value.copy() if isinstance(value, np.ndarray) else value)
+        for key, value in render_scene.items()
+    }
+
+    stone = render_scene['material_id'] == MAT_ID['stone']
+    rock = render_scene['material_id'] == MAT_ID['rock']
+    grass = render_scene['material_id'] == MAT_ID['grass']
+    wood = render_scene['material_id'] == MAT_ID['wood']
+    gold = render_scene['material_id'] == MAT_ID['gold']
+    foliage = render_scene['material_id'] == MAT_ID['foliage']
+
+    render_scene['scale'][stone, :2] *= 1.10
+    render_scene['scale'][rock, :2] *= 1.10
+    render_scene['scale'][grass, :2] *= 1.08
+    render_scene['scale'][wood, :2] *= 1.06
+    render_scene['scale'][gold, :2] *= 1.04
+    render_scene['scale'][foliage, :2] *= 1.06
     path=camera_path(frames)
     for k in tqdm(range(start,end),desc=f'rendering Gaussian-splat frames {start}:{end}'):
         eye,target=path[k]
