@@ -1,0 +1,36 @@
+{
+  "project": "Sky Sanctuary GS: stylized floating-island sanctuary represented as learned Gaussian surfaces",
+  "mode": "full",
+  "teacher_mesh_vertices": 19774,
+  "teacher_mesh_faces": 32930,
+  "gaussian_splats": 1250000,
+  "materials": [
+    "grass",
+    "foliage",
+    "rock",
+    "stone",
+    "gold",
+    "wood",
+    "crystal",
+    "cloud"
+  ],
+  "crystal_alpha_range": [
+    0.18000000715255737,
+    0.47960445284843445
+  ],
+  "ai_ml_components": [
+    "procedural surface-attribute supervision",
+    "learned anisotropic Gaussian-surface representation",
+    "PyTorch residual neural material model",
+    "learned splat color, opacity, and emissive attributes",
+    "synthetic multi-view inspection renders"
+  ],
+  "rendering": "final video rendered by the custom NumPy anisotropic Gaussian-splat renderer; no third-party 3D renderer",
+  "3d_content_mib": 94.52308082580566,
+  "training": {
+    "teacher_views": 8,
+    "material_training_steps": 260,
+    "num_splats": 1250000,
+    "final_loss": 0.000730690429918468
+  }
+}

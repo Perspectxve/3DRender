@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+
+# Regenerable render intermediates.
+outputs/frames/
+outputs_quick/
+test_quick/
+
+# Local environment/cache folders.
+.venv/
+.mypy_cache/
+.pytest_cache/
