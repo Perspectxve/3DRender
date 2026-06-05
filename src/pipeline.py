@@ -614,9 +614,9 @@ def sample_splats(mesh, tex, count=120000):
         mat=str(names[face_id]); factor=0.50
         if mat=='crystal': factor=0.30
         elif mat=='cloud': factor=1.00
-        elif mat=='foliage': factor=0.48
-        elif mat=='stone': factor=0.44
-        elif mat in ('gold','wood'): factor=0.52
+        elif mat=='foliage': factor=0.42
+        elif mat=='stone': factor=0.38
+        elif mat in ('gold','wood'): factor=0.48
         scales.append(np.repeat(np.array([[spacing*factor,spacing*factor,spacing*0.12]],np.float32),n,axis=0))
         material_ids.append(np.full(n,MAT_ID.get(mat,0),np.int16))
 
@@ -769,7 +769,7 @@ def render_splats_np(scene, eye, target, W=640,H=360, fov=55, bg=None, glow=True
         e=np.uint8(np.clip(emission,0,1)*255)
         small=np.asarray(Image.fromarray(e).filter(ImageFilter.GaussianBlur(radius=4)),dtype=np.float32)/255
         wide=np.asarray(Image.fromarray(e).filter(ImageFilter.GaussianBlur(radius=14)),dtype=np.float32)/255
-        img=np.clip(img+small*0.48+wide*0.24,0,1)
+        img=np.clip(img+small*0.70+wide*0.38,0,1)
     return img
 
 # ----------------------------- lightweight Gaussian training -----------------------------
@@ -795,8 +795,8 @@ def build_teacher_targets(scene):
     if len(crystal_points)>0:
         samples=crystal_points[::max(1,len(crystal_points)//256)]
         distance,_=cKDTree(samples).query(P,k=1,workers=-1)
-        local=np.exp(-distance[:,None]*1.35)
-        target=np.clip(target+local*np.array([0.012,0.075,0.14],np.float32),0,1)
+        local=np.exp(-distance[:,None]*0.95)
+        target=np.clip(target+local*np.array([0.025,0.115,0.22],np.float32),0,1)
     altar_light=np.exp(-np.linalg.norm(P-np.array([0.0,1.05,-0.62],np.float32),axis=1)[:,None]*0.82)
     target=np.clip(target+altar_light*np.array([0.018,0.105,0.20],np.float32),0,1)
 
