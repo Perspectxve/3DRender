@@ -614,9 +614,9 @@ def sample_splats(mesh, tex, count=120000):
         mat=str(names[face_id]); factor=0.50
         if mat=='crystal': factor=0.30
         elif mat=='cloud': factor=1.00
-        elif mat=='foliage': factor=0.42
-        elif mat=='stone': factor=0.38
-        elif mat in ('gold','wood'): factor=0.48
+        elif mat=='foliage': factor=0.48
+        elif mat=='stone': factor=0.44
+        elif mat in ('gold','wood'): factor=0.52
         scales.append(np.repeat(np.array([[spacing*factor,spacing*factor,spacing*0.12]],np.float32),n,axis=0))
         material_ids.append(np.full(n,MAT_ID.get(mat,0),np.int16))
 
@@ -926,8 +926,8 @@ def video_settings(mode):
 
 def video_render_scene(scene,mode):
     render_scene=scene
-    if mode=='full' and len(scene['xyz'])>520000:
-        selected=np.linspace(0,len(scene['xyz'])-1,520000,dtype=np.int64)
+    if mode=='full' and len(scene['xyz'])>900000:
+        selected=np.linspace(0,len(scene['xyz'])-1,900000,dtype=np.int64)
         render_scene={key:(value[selected] if isinstance(value,np.ndarray) and len(value)==len(scene['xyz']) else value) for key,value in scene.items()}
     return render_scene
 
