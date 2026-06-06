@@ -617,7 +617,7 @@ def sample_splats(mesh, tex, count=120000):
         elif mat=='cloud': factor=1.00
         elif mat=='foliage': factor=0.42
         elif mat=='stone': factor=0.43
-        elif mat in ('gold','wood'): factor=0.40
+        elif mat in ('gold','wood'): factor=0.46
         scales.append(np.repeat(np.array([[spacing*factor,spacing*factor,spacing*0.12]],np.float32),n,axis=0))
         material_ids.append(np.full(n,MAT_ID.get(mat,0),np.int16))
 
@@ -821,11 +821,18 @@ def build_teacher_targets(scene):
         1
     )
 
-    # Extra soft light pool under the main crystal.
-    light_pool = np.exp(-((P[:,0:1] - 0.0)**2 + (P[:,2:3] + 0.62)**2) / 1.15)
-    top_faces = np.clip(N[:,1:2], 0.0, 1.0)
+    light_pool = np.exp(-((P[:,0:1] - 0.0)**2 + (P[:,2:3] + 0.62)**2) / 1.60)
+    top_or_side = 0.45 + 0.55 * np.clip(N[:,1:2], 0.0, 1.0)
+
+    pool_receiver = (
+        (material == MAT_ID['stone']) |
+        (material == MAT_ID['gold']) |
+        (material == MAT_ID['rock']) |
+        (material == MAT_ID['grass'])
+    )[:, None].astype(np.float32)
+
     target = np.clip(
-        target + receiver * light_pool * top_faces * np.array([0.02, 0.12, 0.24], np.float32),
+        target + pool_receiver * light_pool * top_or_side * np.array([0.075, 0.32, 0.68], np.float32),
         0,
         1
     )
@@ -986,7 +993,7 @@ def render_video_frames(scene,outdir,mode,start=0,end=None):
     render_scene['scale'][rock, :2] *= 1.10
     render_scene['scale'][grass, :2] *= 1.08
     render_scene['scale'][wood, :2] *= 1.06
-    render_scene['scale'][gold, :2] *= 1.00
+    render_scene['scale'][gold, :2] *= 1.04
     render_scene['scale'][foliage, :2] *= 1.06
     path=camera_path(frames)
     for k in tqdm(range(start,end),desc=f'rendering Gaussian-splat frames {start}:{end}'):
