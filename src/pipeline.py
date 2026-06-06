@@ -14,7 +14,7 @@ MATERIAL_DENSITY = {
     'grass': 1.55,
     'foliage': 3.10,
     'rock': 1.05,
-    'stone': 3.70,
+    'stone': 4.80,
     'gold': 2.80,
     'wood': 2.35,
     'crystal': 5.85,
@@ -616,8 +616,8 @@ def sample_splats(mesh, tex, count=120000):
         if mat=='crystal': factor=0.30
         elif mat=='cloud': factor=1.00
         elif mat=='foliage': factor=0.42
-        elif mat=='stone': factor=0.38
-        elif mat in ('gold','wood'): factor=0.48
+        elif mat=='stone': factor=0.43
+        elif mat in ('gold','wood'): factor=0.40
         scales.append(np.repeat(np.array([[spacing*factor,spacing*factor,spacing*0.12]],np.float32),n,axis=0))
         material_ids.append(np.full(n,MAT_ID.get(mat,0),np.int16))
 
@@ -791,13 +791,44 @@ def build_teacher_targets(scene):
     target[crystal]=np.clip(base[crystal]*0.44+crystal_tint*0.56+np.array([0.00,0.035,0.075],np.float32),0,1)
     target[cloud]=np.clip(base[cloud]*(0.82+0.18*height[cloud]),0,1)
 
-    # Crystal splats cast a cyan local-light field onto nearby stone and grass.
-    crystal_points=P[crystal]
-    if len(crystal_points)>0:
-        samples=crystal_points[::max(1,len(crystal_points)//256)]
-        distance,_=cKDTree(samples).query(P,k=1,workers=-1)
-        local = np.exp(-distance[:,None]*0.85)
-        target = np.clip(target + local*np.array([0.035,0.145,0.28],np.float32),0,1)
+    # Fake crystal point-light: distance falloff + normal-facing term.
+    main_light_pos = np.array([0.0, 1.35, -0.62], np.float32)
+
+    to_light = main_light_pos[None, :] - P
+    dist = np.linalg.norm(to_light, axis=1, keepdims=True)
+    light_dir = to_light / np.maximum(dist, 1e-6)
+
+    # Surfaces facing the crystal get more light.
+    facing = np.clip(np.sum(N * light_dir, axis=1, keepdims=True), 0.0, 1.0)
+
+    # Distance falloff. Smaller denominator = shorter/stronger light.
+    falloff = 1.0 / (1.0 + 0.55 * dist * dist)
+
+    # Emphasize stone/gold/grass/wood; do not over-light crystal/cloud.
+    receiver = (
+        (material == MAT_ID['stone']) |
+        (material == MAT_ID['gold']) |
+        (material == MAT_ID['grass']) |
+        (material == MAT_ID['wood']) |
+        (material == MAT_ID['rock'])
+    )[:, None].astype(np.float32)
+
+    crystal_light = receiver * falloff * (0.35 + 0.65 * facing)
+
+    target = np.clip(
+        target + crystal_light * np.array([0.035, 0.18, 0.34], np.float32),
+        0,
+        1
+    )
+
+    # Extra soft light pool under the main crystal.
+    light_pool = np.exp(-((P[:,0:1] - 0.0)**2 + (P[:,2:3] + 0.62)**2) / 1.15)
+    top_faces = np.clip(N[:,1:2], 0.0, 1.0)
+    target = np.clip(
+        target + receiver * light_pool * top_faces * np.array([0.02, 0.12, 0.24], np.float32),
+        0,
+        1
+    )
     altar_light=np.exp(-np.linalg.norm(P-np.array([0.0,1.05,-0.62],np.float32),axis=1)[:,None]*0.82)
     target=np.clip(target+altar_light*np.array([0.018,0.105,0.20],np.float32),0,1)
 
@@ -805,7 +836,7 @@ def build_teacher_targets(scene):
     target_emissive=scene['emissive'].copy()
     crystal_height=np.clip((P[crystal,1]-0.1)/2.8,0,1)
     target_op[crystal]=np.clip(target_op[crystal]*(1.02+0.95*crystal_height),0.18,0.50)
-    target_emissive[crystal]=np.clip(0.75+0.25*crystal_height,0.70,1.00)
+    target_emissive[crystal]=np.clip(0.78+0.22*crystal_height,0.72,1.00)
     return target.astype(np.float32),target_op.astype(np.float32),target_emissive.astype(np.float32)
 
 def train_gaussian_representation(mesh,tex,outdir,mode='quick'):
@@ -885,11 +916,7 @@ def train_gaussian_representation(mesh,tex,outdir,mode='quick'):
     scene['rgb'][crystal]=np.clip(scene['rgb'][crystal]*0.55+crystal_tint*0.45,0,1)
     scene['opacity'][crystal]=np.clip(0.42*scene['opacity'][crystal]+0.58*target_op[crystal],0.18,0.50)
     scene['opacity'][cloud]=np.clip(0.30*scene['opacity'][cloud]+0.70*target_op[cloud],0.015,0.08)
-    scene['emissive'][crystal]=np.clip(
-        0.25*scene['emissive'][crystal]+0.75*target_emissive[crystal],
-        0.65,
-        1.00
-    )
+    scene['emissive'][crystal]=np.clip(0.20*scene['emissive'][crystal]+0.80*target_emissive[crystal],0.68,1.00)
     scene['emissive'][~crystal]*=0.18
     np.savez_compressed(Path(outdir)/'learned_gaussian_splats.npz',**scene)
     torch.save(net.state_dict(),Path(outdir)/'neural_material_mlp.pt')
@@ -959,7 +986,7 @@ def render_video_frames(scene,outdir,mode,start=0,end=None):
     render_scene['scale'][rock, :2] *= 1.10
     render_scene['scale'][grass, :2] *= 1.08
     render_scene['scale'][wood, :2] *= 1.06
-    render_scene['scale'][gold, :2] *= 1.04
+    render_scene['scale'][gold, :2] *= 1.00
     render_scene['scale'][foliage, :2] *= 1.06
     path=camera_path(frames)
     for k in tqdm(range(start,end),desc=f'rendering Gaussian-splat frames {start}:{end}'):
